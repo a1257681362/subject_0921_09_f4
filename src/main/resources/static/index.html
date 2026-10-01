@@ -78,6 +78,7 @@
     <div class="tab" data-tab="version">⑥ 版本与留底</div>
     <div class="tab" data-tab="asset">⑦ 素材转档</div>
     <div class="tab" data-tab="geo">⑧ 坐标建档与捞点</div>
+    <div class="tab" data-tab="rate">⑨ 年度刊例与报价</div>
   </div>
 
   <!-- 点位挂牌 -->
@@ -266,6 +267,90 @@
     <p class="muted" style="margin-top:6px">落在 ≥2 个商圈圈界里的点位标「重叠带」；归属仍按录入时定的主商圈走。未建档坐标的点位不进结果。</p>
     <table id="geoHitTable"></table>
   </div>
+
+  <!-- 年度刊例与统一报价 -->
+  <div class="panel" id="panel-rate">
+    <h3>年度刊例建档（一个自然年一份；同年重复建存不进去）</h3>
+    <div class="grid">
+      <div><label>刊例年份 *</label><input id="rcYear" placeholder="如 2026"></div>
+      <div><label>刊例名称 *</label><input id="rcName" placeholder="如 2026 年度户外 LED 刊例"></div>
+      <div><label>税率（留空默认 6%）</label><input id="rcTax" placeholder="0.06"></div>
+      <div><label>经手人（留空取登录人）</label><input id="rcOperator"></div>
+    </div>
+    <div class="actions">
+      <button onclick="createRateCard()">建年度刊例（带 v1 草稿）</button>
+      <button class="gray" onclick="loadRateCards()">翻查刊例</button>
+    </div>
+    <table id="rateCardTable"></table>
+
+    <h3>刊例版本（调价只准另起新版；生效版冻结，发布后档位/单价一个字不能改）</h3>
+    <div class="grid">
+      <div><label>刊例 ID *（翻查后点「选」）</label><input id="rcCardId"></div>
+      <div><label>草稿版本 ID（配置/发布用）</label><input id="rcVersionId"></div>
+      <div style="align-self:end;display:flex;gap:8px;flex-wrap:wrap">
+        <button class="gray" onclick="loadVersions()">查版本</button>
+        <button onclick="newVersion()">另起新版（拷贝上版配置）</button>
+        <button class="warn" onclick="closeCard()">封存年度</button>
+      </div>
+    </div>
+    <table id="versionTable"></table>
+
+    <h3>草稿版本配置（整表替换：阶梯档位比例 + 点位刊例价；只准改草稿）</h3>
+    <div class="grid">
+      <div><label>版本 ID *</label><input id="cfgVersionId"></div>
+    </div>
+    <div class="grid">
+      <div class="span2"><label>阶梯档位（按周数升序，首尾相接不许断档；maxWeeks 留空 = 及以上，只能在最后一档）</label>
+        <textarea id="cfgTiers" rows="4" style="width:100%"></textarea></div>
+      <div class="span2"><label>点位刊例价（挂牌周单价，未税）</label>
+        <textarea id="cfgPrices" rows="4" style="width:100%"></textarea></div>
+    </div>
+    <div class="actions">
+      <button onclick="configureVersion()">保存配置到草稿</button>
+      <button class="gray" onclick="fillCfgExample()">填示例</button>
+      <button onclick="publishVersion()">发布该草稿</button>
+      <button class="warn" onclick="revokeVersion()">作废生效版本</button>
+    </div>
+
+    <h3>财务随查随拉 · 年度阶梯对照表（含税/未税口径按版本税率算）</h3>
+    <div class="grid">
+      <div><label>刊例年份 *</label><input id="rcQueryYear"></div>
+      <div style="align-self:end;display:flex;gap:8px">
+        <button class="gray" onclick="loadYearDetail()">拉对照表</button>
+        <button onclick="exportTiers()">导出 CSV</button>
+      </div>
+    </div>
+    <div id="tierBox" style="margin-top:8px"></div>
+    <table id="rcSitePriceTable"></table>
+
+    <h3>报价试算 / 提交（按提交当天的生效刊例算；含税、未税并列，默认含税）</h3>
+    <div class="grid">
+      <div><label>客户名称 *</label><input id="qtCustomer"></div>
+      <div><label>提交日期（留空=今天，不许未来）</label><input id="qtDate" type="date"></div>
+      <div><label>经手人（留空取登录人）</label><input id="qtOperator"></div>
+      <div class="span2"><label>报价行（点位 + 购买周数；价格由刊例算，前端给价无效）</label>
+        <textarea id="qtLines" rows="3" style="width:100%"></textarea></div>
+    </div>
+    <div class="actions">
+      <button class="gray" onclick="previewQuote()">试算（不落库）</button>
+      <button onclick="submitQuote()">提交报价（留单价快照）</button>
+      <button class="gray" onclick="fillQuoteExample()">填示例</button>
+    </div>
+    <div id="quotePreview" style="margin-top:8px"></div>
+
+    <h3>报价单翻查（调价后旧单不回写，永远是提交当时的单价快照）</h3>
+    <div class="grid">
+      <div><label>客户（模糊）</label><input id="qQtCustomer"></div>
+      <div><label>刊例年份</label><input id="qQtYear"></div>
+      <div><label>报价单号（精确查详情）</label><input id="qQtNo" placeholder="QT…"></div>
+      <div style="align-self:end;display:flex;gap:8px">
+        <button class="gray" onclick="loadQuotes()">翻查列表</button>
+        <button class="gray" onclick="loadQuoteDetail()">查单详情</button>
+      </div>
+    </div>
+    <table id="quoteTable"></table>
+    <div id="quoteDetail" style="margin-top:8px"></div>
+  </div>
 </div>
 
 <script>
@@ -314,12 +399,13 @@ async function doLogin() {
 async function init() {
   // header 占位（登录后填充）
   document.body.insertAdjacentHTML('afterbegin',
-    '<header><h1>户外广告点位与上刊底账 <span class="muted" style="color:#c8d4e6">EVOPS f1·f2·f3</span></h1><span class="who"></span></header>');
+    '<header><h1>户外广告点位与上刊底账 <span class="muted" style="color:#c8d4e6">EVOPS f1·f2·f3·f4</span></h1><span class="who"></span></header>');
   document.querySelectorAll('.tab').forEach(t => t.onclick = () => {
     document.querySelectorAll('.tab').forEach(x => x.classList.remove('active'));
     document.querySelectorAll('.panel').forEach(x => x.classList.remove('active'));
     t.classList.add('active');
     document.getElementById('panel-' + t.dataset.tab).classList.add('active');
+    if (t.dataset.tab === 'rate') { loadRateCards(); }
   });
   document.getElementById('calPeriod').value = new Date().toISOString().slice(0, 7);
   try { const me = await call('GET', '/me'); showApp(me.username); loadSites(); loadSpecs(); } catch (e) { showLogin(); }
@@ -682,6 +768,254 @@ async function searchGeo() {
 function exportGeo() {
   const q = geoQuery(); if (!q) return;
   window.open(API + '/sites/geo/search/export?' + q, '_blank');
+}
+
+/* ===== ⑨ 年度刊例与统一报价 ===== */
+function rcStatusTag(s) {
+  return { DRAFT: '<span class="tag pending">编制中</span>', EFFECTIVE: '<span class="tag success">生效中</span>',
+    CLOSED: '<span class="tag down">已封存</span>' }[s] || esc(s);
+}
+function rcVerTag(s) {
+  return { DRAFT: '<span class="tag pending">草稿</span>', EFFECTIVE: '<span class="tag success">生效中</span>',
+    SUPERSEDED: '<span class="tag kind">已被新版取代</span>', REVOKED: '<span class="tag failed">已作废</span>' }[s] || esc(s);
+}
+function money(n) { return n == null ? '' : Number(n).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+
+async function createRateCard() {
+  try {
+    const d = await call('POST', '/rate-cards', { rateYear: Number(val('rcYear')), cardName: val('rcName'),
+      taxRate: val('rcTax'), operatorName: val('rcOperator') });
+    toast('年度刊例已建：' + d.cardNo + '（v1 草稿，ID ' + d.id + '）', true);
+    document.getElementById('rcCardId').value = d.id;
+    loadRateCards();
+  } catch (e) { toast(e.message); }
+}
+
+async function loadRateCards() {
+  try {
+    const list = await call('GET', '/rate-cards?year=' + encodeURIComponent(val('rcYear') || ''));
+    document.getElementById('rateCardTable').innerHTML =
+      '<tr><th>刊例 ID</th><th>编号</th><th>年份</th><th>名称</th><th>状态</th><th>当前版本</th><th>操作</th></tr>'
+      + list.map(c => `<tr>
+        <td>${c.id}</td><td>${esc(c.cardNo)}</td><td>${c.rateYear}</td><td>${esc(c.cardName)}</td>
+        <td>${rcStatusTag(c.status)}</td>
+        <td>${c.currentVersionNo ? 'v' + c.currentVersionNo : '—'}</td>
+        <td><button class="sm gray" onclick="pickCard(${c.id})">选</button>
+            <button class="sm gray" onclick="document.getElementById('rcQueryYear').value=${c.rateYear};loadYearDetail()">对照表</button>
+        </td></tr>`).join('');
+  } catch (e) { toast(e.message); }
+}
+function pickCard(id) {
+  document.getElementById('rcCardId').value = id;
+  loadVersions();
+}
+
+async function loadVersions() {
+  const id = val('rcCardId');
+  if (!id) { toast('请先填刊例 ID（翻查后点「选」）'); return; }
+  try {
+    const list = await call('GET', '/rate-cards/' + id + '/versions');
+    document.getElementById('versionTable').innerHTML =
+      '<tr><th>版本 ID</th><th>版本号</th><th>状态</th><th>税率</th><th>发布时间</th><th>操作</th></tr>'
+      + list.map(v => `<tr>
+        <td>${v.id}</td><td>v${v.versionNo}</td><td>${rcVerTag(v.status)}</td>
+        <td>${Math.round(v.taxRate * 10000) / 100}%</td><td>${esc(v.publishTime || '')}</td>
+        <td><button class="sm gray" onclick="pickVersion(${v.id})">配/查</button></td>
+        </tr>`).join('')
+      || '<tr><td class="muted">该刊例还没有版本</td></tr>';
+  } catch (e) { toast(e.message); }
+}
+function pickVersion(id) {
+  document.getElementById('rcVersionId').value = id;
+  document.getElementById('cfgVersionId').value = id;
+  loadVersionDetail(id);
+}
+function fillCfgExample() {
+  document.getElementById('cfgTiers').value =
+    'minWeeks,maxWeeks,discountRate\n1,4,1.0000\n5,12,0.9000\n13,,0.8000';
+  document.getElementById('cfgPrices').value =
+    'siteNo,listPrice\n（把翻查到的点位编号填这里）,1000.00';
+  toast('已填档位示例；点位刊例价请把占位符换成真实点位编号', true);
+}
+function parseCsvish(text) {
+  return text.trim().split(/\r?\n/).map(l => l.split(',').map(x => x.trim())).filter(r => r.length && r.some(Boolean));
+}
+function buildTiers() {
+  const rows = parseCsvish(val('cfgTiers'));
+  if (!rows.length) throw new Error('阶梯档位不能为空（表头：minWeeks,maxWeeks,discountRate）');
+  const start = /minweeks/i.test(rows[0][0]) ? 1 : 0;
+  return rows.slice(start).map(r => ({
+    minWeeks: Number(r[0]), maxWeeks: r[1] === '' || r[1] == null ? null : Number(r[1]),
+    discountRate: r[2]
+  }));
+}
+function buildPrices() {
+  const rows = parseCsvish(val('cfgPrices'));
+  if (!rows.length) throw new Error('点位刊例价不能为空（表头：siteNo,listPrice）');
+  const start = /siteno/i.test(rows[0][0]) ? 1 : 0;
+  return rows.slice(start).filter(r => r[0] && !/^（/.test(r[0])).map(r => ({ siteNo: r[0], listPrice: r[1] }));
+}
+
+async function newVersion() {
+  const id = val('rcCardId');
+  if (!id) { toast('请先填刊例 ID'); return; }
+  try {
+    const v = await call('POST', '/rate-cards/' + id + '/versions', { operatorName: val('rcOperator') });
+    toast('已另起 v' + v.versionNo + ' 草稿（从上一版拷贝配置），版本 ID ' + v.id, true);
+    document.getElementById('rcVersionId').value = v.id;
+    document.getElementById('cfgVersionId').value = v.id;
+    loadVersions();
+  } catch (e) { toast(e.message); }
+}
+async function closeCard() {
+  const id = val('rcCardId');
+  if (!id) { toast('请先填刊例 ID'); return; }
+  try {
+    const d = await call('POST', '/rate-cards/' + id + '/close', { operatorName: val('rcOperator') });
+    toast('年度刊例已封存：' + d.cardNo, true); loadRateCards();
+  } catch (e) { toast(e.message); }
+}
+async function configureVersion() {
+  const id = val('cfgVersionId') || val('rcVersionId');
+  if (!id) { toast('请先填草稿版本 ID'); return; }
+  let tiers, prices;
+  try { tiers = buildTiers(); prices = buildPrices(); } catch (e) { toast(e.message); return; }
+  try {
+    await call('PUT', '/rate-cards/versions/' + id, { tiers, sitePrices: prices, operatorName: val('rcOperator') });
+    toast('配置已保存到草稿（整表替换）', true);
+    loadVersionDetail(id);
+  } catch (e) { toast(e.message); }
+}
+async function publishVersion() {
+  const id = val('cfgVersionId') || val('rcVersionId');
+  if (!id) { toast('请先填版本 ID'); return; }
+  try {
+    const v = await call('POST', '/rate-cards/versions/' + id + '/publish', { operatorName: val('rcOperator') });
+    toast('v' + v.versionNo + ' 已发布生效，旧版自动置「已被新版取代」', true);
+    loadVersions(); loadRateCards();
+  } catch (e) { toast(e.message); }
+}
+async function revokeVersion() {
+  const id = val('cfgVersionId') || val('rcVersionId');
+  if (!id) { toast('请先填版本 ID'); return; }
+  try {
+    const v = await call('POST', '/rate-cards/versions/' + id + '/revoke', { operatorName: val('rcOperator') });
+    toast('v' + v.versionNo + ' 已作废（留底不删），该年度重新发布版本后才能报价', true);
+    loadVersions(); loadRateCards();
+  } catch (e) { toast(e.message); }
+}
+async function loadVersionDetail(id) {
+  const d = await call('GET', '/rate-cards/versions/' + id);
+  document.getElementById('tierBox').innerHTML = renderVersionDetail(d);
+}
+function renderVersionDetail(d) {
+  const tiers = '<table><tr><th>档位</th><th>周数区间</th><th>档位比例</th><th>折扣</th></tr>'
+    + d.tiers.map(t => `<tr><td>第 ${t.tierNo} 档</td><td>${t.maxWeeks == null ? t.minWeeks + ' 周及以上' : (t.minWeeks === t.maxWeeks ? t.minWeeks + ' 周' : t.minWeeks + '~' + t.maxWeeks + ' 周')}</td>
+      <td>${t.discountRate}</td><td>${t.discountRate === '1.0000' ? '不打折' : (t.discountRate * 10) + ' 折'}</td></tr>`).join('') + '</table>';
+  const prices = '<table style="margin-top:8px"><tr><th>点位编号</th><th>尺寸</th><th>朝向</th><th>商圈</th><th>挂牌周单价(未税)</th></tr>'
+    + (d.sitePrices || []).map(p => `<tr><td>${esc(p.siteNo)}</td><td>${esc(p.sizeSpec)}</td><td>${esc(p.orientation)}</td>
+      <td>${esc(p.businessDistrict)}</td><td>${money(p.listPrice)}</td></tr>`).join('') + '</table>';
+  return `<p class="muted">${d.rateYear} 年 · ${esc(d.cardName)} · v${d.version.versionNo} ${rcVerTag(d.version.status)}
+    · 税率 ${Math.round(d.version.taxRate * 10000) / 100}%</p>${tiers}${prices}`;
+}
+async function loadYearDetail() {
+  const year = val('rcQueryYear');
+  if (!year) { toast('请填刊例年份'); return; }
+  try {
+    const d = await call('GET', '/rate-cards/years/' + Number(year));
+    document.getElementById('tierBox').innerHTML = renderVersionDetail(d);
+    document.getElementById('rcCardId').value = d.cardId;
+    toast('已拉取 ' + year + ' 年度当前版本对照表（v' + d.version.versionNo + '）', true);
+  } catch (e) { toast(e.message); }
+}
+function exportTiers() {
+  const year = val('rcQueryYear');
+  if (!year) { toast('请填刊例年份'); return; }
+  window.open(API + '/rate-cards/years/' + Number(year) + '/tiers/export', '_blank');
+}
+
+/* 报价 */
+function fillQuoteExample() {
+  document.getElementById('qtLines').value =
+    'siteNo,weeks\n（填点位编号）,2\n（填点位编号）,10';
+  toast('已填报价行示例，请把占位符换成真实点位编号', true);
+}
+function buildQuoteLines() {
+  const rows = parseCsvish(val('qtLines'));
+  if (!rows.length) throw new Error('报价行不能为空（表头：siteNo,weeks）');
+  const start = /siteno/i.test(rows[0][0]) ? 1 : 0;
+  return rows.slice(start).filter(r => r[0] && !/^（/.test(r[0]))
+    .map(r => ({ siteNo: r[0], weeks: Number(r[1]) }));
+}
+async function previewQuote() {
+  let lines;
+  try { lines = buildQuoteLines(); } catch (e) { toast(e.message); return; }
+  try {
+    const d = await call('POST', '/quotes/preview', makeQuoteBody(lines));
+    renderPricing(d);
+    toast('试算完成（未落库），默认看含税列，未税列并列展示', true);
+  } catch (e) { toast(e.message); }
+}
+function makeQuoteBody(lines) {
+  return { customerName: val('qtCustomer') || '试算客户', submitDate: val('qtDate') || null,
+    lines, operatorName: val('qtOperator') };
+}
+async function submitQuote() {
+  let lines;
+  try { lines = buildQuoteLines(); } catch (e) { toast(e.message); return; }
+  if (!val('qtCustomer')) { toast('请填客户名称'); return; }
+  try {
+    const d = await call('POST', '/quotes', makeQuoteBody(lines));
+    toast('报价已提交：' + d.quote.quoteNo + '（v' + d.quote.versionNo + ' 刊例，单价已快照）', true);
+    renderQuoteDetail(d);
+    loadQuotes();
+  } catch (e) { toast(e.message); }
+}
+function renderPricing(d) {
+  const head = `<p class="muted">按 ${d.priceDate} 当天生效刊例：${d.rateYear} 年 v${d.versionNo}（${esc(d.rateCardNo)}）· 税率 ${Math.round(d.taxRate * 10000) / 100}%</p>`;
+  const tbl = '<table><tr><th>点位</th><th>商圈</th><th>周数</th><th>档位</th><th>比例</th><th>挂牌单价(未税)</th><th>折后单价(未税)</th><th>未税金额</th><th>税额</th><th>含税金额</th></tr>'
+    + d.lines.map(l => `<tr><td>${esc(l.siteNo)}</td><td>${esc(l.businessDistrict)}</td><td>${l.weeks}</td>
+      <td>第 ${l.tierNo} 档</td><td>${l.discountRate}</td><td>${money(l.listPrice)}</td><td>${money(l.unitPrice)}</td>
+      <td>${money(l.amountExTax)}</td><td>${money(l.taxAmount)}</td>
+      <td><b>${money(l.amountInclTax)}</b></td></tr>`).join('')
+    + `<tr style="background:#eef4fb;font-weight:600"><td colspan="7">合计（默认含税口径）</td>
+      <td>未税 ${money(d.totalExTax)}</td><td>税 ${money(d.totalTax)}</td><td>含税 ${money(d.totalInclTax)}</td></tr></table>`;
+  document.getElementById('quotePreview').innerHTML = head + tbl;
+}
+async function loadQuotes() {
+  try {
+    const list = await call('GET', '/quotes?customerName=' + encodeURIComponent(val('qQtCustomer') || '')
+      + '&rateYear=' + encodeURIComponent(val('qQtYear') || ''));
+    document.getElementById('quoteTable').innerHTML =
+      '<tr><th>报价单号</th><th>客户</th><th>提交日</th><th>刊例</th><th>版本</th><th>未税合计</th><th>税额</th><th>含税合计</th><th>经手人</th></tr>'
+      + list.map(q => `<tr><td><a href="javascript:void(0)" onclick="document.getElementById('qQtNo').value='${esc(q.quoteNo)}';loadQuoteDetail()">${esc(q.quoteNo)}</a></td>
+        <td>${esc(q.customerName)}</td><td>${esc(q.submitDate)}</td><td>${q.rateYear} ${esc(q.rateCardNo)}</td>
+        <td>v${q.versionNo}</td><td>${money(q.totalExTax)}</td><td>${money(q.totalTax)}</td>
+        <td><b>${money(q.totalInclTax)}</b></td><td>${esc(q.operatorName)}</td></tr>`).join('')
+      || '<tr><td class="muted">没有报价单</td></tr>';
+  } catch (e) { toast(e.message); }
+}
+async function loadQuoteDetail() {
+  const no = val('qQtNo');
+  if (!no) { toast('请填报价单号'); return; }
+  try {
+    const d = await call('GET', '/quotes/' + encodeURIComponent(no));
+    renderQuoteDetail(d);
+  } catch (e) { toast(e.message); }
+}
+function renderQuoteDetail(d) {
+  const q = d.quote;
+  const head = `<p>单号 <b>${esc(q.quoteNo)}</b> ｜ 客户 ${esc(q.customerName)} ｜ 提交日 ${q.submitDate}
+    ｜ 计价刊例 ${q.rateYear} ${esc(q.rateCardNo)} v${q.versionNo} ｜ 税率 ${Math.round(q.taxRate * 10000) / 100}%
+    ｜ <span class="muted">单价为提交当时快照，后续调价不回写本单</span></p>`;
+  const tbl = '<table><tr><th>#</th><th>点位</th><th>尺寸</th><th>商圈</th><th>周数</th><th>档位</th><th>比例</th><th>挂牌单价</th><th>折后单价</th><th>未税金额</th><th>税额</th><th>含税金额</th></tr>'
+    + d.lines.map((l, i) => `<tr><td>${i + 1}</td><td>${esc(l.siteNo)}</td><td>${esc(l.sizeSpec)}</td>
+      <td>${esc(l.businessDistrict)}</td><td>${l.weeks}</td><td>第 ${l.tierNo} 档</td><td>${l.discountRate}</td>
+      <td>${money(l.listPrice)}</td><td>${money(l.unitPrice)}</td><td>${money(l.amountExTax)}</td>
+      <td>${money(l.taxAmount)}</td><td><b>${money(l.amountInclTax)}</b></td></tr>`).join('')
+    + `<tr style="background:#eef4fb;font-weight:600"><td colspan="9">合计（默认含税）</td>
+      <td>${money(q.totalExTax)}</td><td>${money(q.totalTax)}</td><td>含税 ${money(q.totalInclTax)}</td></tr></table>`;
+  document.getElementById('quoteDetail').innerHTML = head + tbl;
 }
 
 init();

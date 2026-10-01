@@ -52,6 +52,11 @@ asset:
     floor: 0.5
     decrement: 0.15
 
+# 年度刊例
+rate-card:
+  # 默认税率：建刊例版本时未单独指定税率用它（0.06 = 6%）；挂牌单价为未税价
+  default-tax-rate: 0.06
+
 mybatis-plus:
   mapper-locations: classpath*:mapper/**/*.xml
   type-aliases-package: com.evops
