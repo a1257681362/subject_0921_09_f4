@@ -51,6 +51,21 @@
 - **商圈重叠带标出来**：点位坐标同时落进 ≥2 个商圈圈界的，结果里标「重叠带」并列出实际覆盖的商圈名单；标记只作提示，不改归属。
 - **整页能导出**：检索结果整页导出 CSV（带 BOM，Excel 打开不乱码），列含主商圈归属、距离、十进制度坐标、重叠带标记。
 
+## F4：年度刊例与统一计价（f4-rate-card-1）
+
+同一个项目两家店报价差几十块、客户拿着单子来砍价——刊例收进 evops-base 作为**计价唯一入口**：点位挂年度刊例，购买周数落阶梯折扣，报价按提交当天刊例算并留单价快照，以后调价不回写旧单。
+
+业务口径：
+
+- **公司级一年一张年度刊例**：`card_year` 唯一（编号 RC2026），编号年份就是报价取刊例的依据。
+- **年度刊例版本**：版本 `DRAFT 草稿 / PENDING 待生效 / EFFECTIVE 生效中 / SUPERSEDED 已被新版取代`，来源 `INITIAL 首版 / REVISE 修订`。草稿可整表改单价行、阶梯、税率；**发布即冻结**，旧生效版本置 SUPERSEDED 不抹历史；可指定未来生效日（预发来年刊例，到日自动激活）。修订草稿从上一生效版本深拷贝单价行与阶梯，同一刊例同时只能有一个草稿/待生效版本。
+- **点位挂年度刊例**：单价按**周**、按**不含税净价**录入（`DECIMAL(12,2)`，最多 2 位小数，超位拒收不截断）；点位在版本中没挂价不能报价。
+- **周数阶梯折扣，档位比例配出来**：双闭区间无缝拼接（从 1 周开始、仅末档无上限），**重叠/断档/买久更贵（折扣率不单调不增）保存即拒**；折扣率为实收比例（0.9500=95 折，`(0,1]`、4 位小数）。
+- **计价逻辑只在一处**：`PricingEngine.price(siteId, weeks, quoteDate)` 是全系统唯一定价入口，报价试算与提交都走它，接口层不许自己算钱。折后净单价=挂牌净单价×折扣率（HALF_UP 2 位），净金额=折后净单价×周数，含税值=不含税值×(1+税率)，税额=含税金额−不含税金额。
+- **报价按提交当天刊例算、历史单留快照**：报价按报价日解析该年度「当时已生效、生效时刻最近」的版本；允许补录过去日期（按当天版本计价），拒绝晚于今天的报价。提交即终态（只提交+翻查，无改/删/撤），报价头/行固化刊例编号、版本号、生效时刻、税率、挂牌单价、命中档位、净/含税单价与金额；**后面调价一个字节都不回写旧单**。同单同点位多行拒收（请合并周数）。
+- **含税未含税并列展示，默认含税**：税率挂版本（广告服务默认 6%，可调，允许 0）；试算/详情/导出都两列并列，含税列加粗默认先看。含税金额按不含税金额换算，与含税单价×周数可能差 1 分。
+- **财务随查随拉阶梯对照表**：`/api/rate-cards/finance/tiers` 查某天生效版本的全档位，可选点位附带各档折后净/含税周单价；`.../export` 整表导出 CSV（带 BOM）。
+
 ## 接口一览（均在 /api 下，除 health/login 外需登录）
 
 | 动作 | 接口 |
@@ -70,14 +85,21 @@
 | 经纬度建档 / 建档版本翻查 | `POST /api/sites/{siteNo}/geo`、`GET /api/sites/{siteNo}/geo/versions` |
 | 半径捞点 / 整页导出 CSV | `GET /api/sites/geo/search?lat=&lng=&radiusKm=`、`GET /api/sites/geo/search/export?...` |
 | 商圈圈界：圈定 / 翻查 / 重圈 | `POST /api/districts`、`GET /api/districts`、`PUT /api/districts/{districtName}` |
+| 年度刊例：建档 / 翻查 / 详情（含版本） | `POST /api/rate-cards`、`GET /api/rate-cards`、`GET /api/rate-cards/{cardId}` |
+| 修订草稿（复制行+阶梯） | `POST /api/rate-cards/{cardId}/versions` |
+| 版本详情 / 草稿税率 | `GET /api/rate-cards/versions/{versionId}`、`PUT /api/rate-cards/versions/{versionId}/tax-rate` |
+| 草稿单价行 / 阶梯行（整表替换） | `PUT /api/rate-cards/versions/{versionId}/lines`、`/tiers` |
+| 版本发布（可指定生效日） | `POST /api/rate-cards/versions/{versionId}/publish` |
+| 报价试算 / 提交 / 翻查 / 详情 | `POST /api/quotes/preview`、`POST /api/quotes`、`GET /api/quotes`、`GET /api/quotes/{id}` |
+| 财务阶梯对照表 / CSV 导出 | `GET /api/rate-cards/finance/tiers`、`/api/rate-cards/finance/tiers/export` |
 
-演示界面：启动后浏览器打开根路径 `/`（周例会演示用，八个页签覆盖全流程）。
+演示界面：启动后浏览器打开根路径 `/`（周例会演示用，九个页签覆盖全流程）。
 
 ## 启动
 
 1. 执行 `mvn -q -DskipTests compile` 验证骨架构建。
 2. 执行 `mvn spring-boot:run` 启动应用；Spring Boot 会自动执行 `src/main/resources/schema.sql`。
 3. H2 数据文件默认写入工作区 `data/evops`。如需修改路径，编辑 `application.yml` 中的 `jdbc:h2:file:` 连接串。
-4. 验证：`mvn test`（11 项底账口径测试 + 7 项素材转档测试 + 8 项坐标建档测试，独立内存 H2）。
+4. 验证：`mvn test`（11 项底账口径测试 + 7 项素材转档测试 + 8 项坐标建档测试 + 19 项年度刊例计价测试，独立内存 H2）。
 
 表结构交付副本：`docs/schema/evops.sql`（容器内根目录 `../../docs/schema` 不可写，交付副本置于工作区内），应与 `src/main/resources/schema.sql` 保持一致。

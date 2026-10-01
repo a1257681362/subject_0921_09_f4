@@ -54,6 +54,14 @@
   .toast.err { background: #c0392b; }
   .muted { color: #8a9099; font-size: 12px; }
   .row-actions button { margin-right: 4px; }
+  .tag.draft { background: #eee; color: #666; }
+  .tag.eff { background: #eafaf0; color: #1a8a4a; }
+  .tag.sup { background: #eef0f3; color: #8a9099; }
+  .tag.pend { background: #fdf3e3; color: #c2780a; }
+  .gross { font-weight: 700; color: #1f3a5f; }
+  .editor { border: 1px solid #e3e6eb; border-radius: 6px; padding: 12px; margin-top: 10px; background: #fafbfc; }
+  .editor h4 { font-size: 13px; color: #1f3a5f; margin: 4px 0 8px; }
+  .editor input { padding: 5px 8px; }
   pre.event { background: #f7f8fa; border: 1px solid #e3e6eb; border-radius: 5px; padding: 10px; font-size: 12px; max-height: 360px; overflow: auto; white-space: pre-wrap; }
 </style>
 </head>
@@ -78,6 +86,7 @@
     <div class="tab" data-tab="version">⑥ 版本与留底</div>
     <div class="tab" data-tab="asset">⑦ 素材转档</div>
     <div class="tab" data-tab="geo">⑧ 坐标建档与捞点</div>
+    <div class="tab" data-tab="rate">⑨ 年度刊例</div>
   </div>
 
   <!-- 点位挂牌 -->
@@ -266,6 +275,90 @@
     <p class="muted" style="margin-top:6px">落在 ≥2 个商圈圈界里的点位标「重叠带」；归属仍按录入时定的主商圈走。未建档坐标的点位不进结果。</p>
     <table id="geoHitTable"></table>
   </div>
+
+  <!-- ⑨ 年度刊例 -->
+  <div class="panel" id="panel-rate">
+    <h3>建年度刊例（一年一张，建档同时生成 v1 草稿；单价按周、不含税录入，税率默认 6%）</h3>
+    <div class="grid">
+      <div><label>年度 *</label><input id="rcYear" type="number" placeholder="如 2026"></div>
+      <div><label>刊例名称</label><input id="rcName" placeholder="留空取「YYYY 年度刊例」"></div>
+      <div><label>税率（分数）</label><input id="rcTax" placeholder="0.06"></div>
+      <div><label>经手人（留空取登录人）</label><input id="rcOperator"></div>
+    </div>
+    <div class="actions"><button onclick="createCard()">建档并生成 v1 草稿</button></div>
+
+    <h3>刊例与版本翻查</h3>
+    <div class="grid">
+      <div><label>按年度筛选</label><input id="qrcYear" type="number" placeholder="留空查全部"></div>
+      <div style="align-self:end"><button class="gray" onclick="loadCards()">翻查刊例</button></div>
+    </div>
+    <table id="cardTable"></table>
+    <table id="versionTable" style="margin-top:8px"></table>
+
+    <div id="versionEditor" class="editor" style="display:none">
+      <h4>草稿编辑 · <span id="edTitle"></span></h4>
+      <div class="grid">
+        <div><label>税率（分数）</label><input id="edTax" placeholder="0.06"></div>
+        <div style="align-self:end"><button class="gray sm" onclick="saveDraftTax()">保存税率</button></div>
+      </div>
+      <p class="muted" style="margin:8px 0 4px">点位挂牌单价（按周/不含税，整表保存；空白行不下发）</p>
+      <table id="priceEditTable"></table>
+      <div class="actions"><button class="gray" onclick="saveCardLines()">批量保存单价</button></div>
+      <p class="muted" style="margin:12px 0 4px">周数阶梯（双闭区间无缝拼接，仅最后一档上限留空=无上限；折扣率为实收比例，如 0.95=95 折，买得越久不能越贵）</p>
+      <table id="tierEditTable"></table>
+      <div class="actions">
+        <button class="gray" onclick="addTierRow()">+ 加一档</button>
+        <button class="gray" onclick="saveCardTiers()">保存阶梯</button>
+      </div>
+      <div class="actions">
+        <label style="margin:0">生效日期（留空立即生效，填未来日为待生效）</label>
+        <input id="edEffectiveDate" type="date" style="max-width:180px">
+        <button class="warn" onclick="publishVersion()">发布版本（冻结）</button>
+      </div>
+    </div>
+
+    <h3>报价试算 / 提交（按报价日当天刊例计价；含税、不含税并列，默认看含税；提交即冻结不改单）</h3>
+    <div class="grid">
+      <div><label>报价日期</label><input id="qtDate" type="date"></div>
+      <div><label>客户名称</label><input id="qtCustomer"></div>
+      <div><label>经手人（留空取登录人）</label><input id="qtOperator"></div>
+      <div class="span2"><label>备注</label><input id="qtRemark"></div>
+    </div>
+    <table id="quoteLineEditTable" style="margin-top:8px"></table>
+    <div class="actions">
+      <button class="gray" onclick="addQuoteSiteRow()">+ 加点位行</button>
+      <button onclick="previewQuote()">试算</button>
+      <button class="warn" onclick="submitQuote()" id="submitQuoteBtn" disabled>提交报价单</button>
+    </div>
+    <p id="quoteBasis" class="muted" style="margin-top:8px"></p>
+    <table id="quotePreviewTable"></table>
+
+    <h3>报价单翻查（历史单留当时单价快照，刊例调价不回写）</h3>
+    <div class="grid">
+      <div><label>报价日起</label><input id="qqtFrom" type="date"></div>
+      <div><label>报价日止</label><input id="qqtTo" type="date"></div>
+      <div><label>报价单号</label><input id="qqtNo"></div>
+      <div><label>客户（模糊）</label><input id="qqtCustomer"></div>
+      <div><label>刊例年度</label><input id="qqtYear" type="number"></div>
+      <div style="align-self:end"><button class="gray" onclick="loadQuotes()">翻查</button></div>
+    </div>
+    <table id="quoteTable"></table>
+    <div id="quoteDetailBox" style="display:none;margin-top:10px">
+      <p class="muted" id="quoteDetailBasis"></p>
+      <table id="quoteDetailTable"></table>
+    </div>
+
+    <h3>财务阶梯对照表（随查随拉；选点位附带各档折后单价，可整表导出 CSV）</h3>
+    <div class="grid">
+      <div><label>对照日期</label><input id="ftDate" type="date"></div>
+      <div><label>参照点位</label><select id="ftSite"></select></div>
+      <div style="align-self:end;display:flex;gap:8px">
+        <button class="gray" onclick="loadFinanceTiers()">查询</button>
+        <button onclick="exportFinanceTiers()">导出 CSV</button>
+      </div>
+    </div>
+    <table id="financeTierTable"></table>
+  </div>
 </div>
 
 <script>
@@ -314,12 +407,13 @@ async function doLogin() {
 async function init() {
   // header 占位（登录后填充）
   document.body.insertAdjacentHTML('afterbegin',
-    '<header><h1>户外广告点位与上刊底账 <span class="muted" style="color:#c8d4e6">EVOPS f1·f2·f3</span></h1><span class="who"></span></header>');
+    '<header><h1>户外广告点位与上刊底账 <span class="muted" style="color:#c8d4e6">EVOPS f1·f2·f3·f4</span></h1><span class="who"></span></header>');
   document.querySelectorAll('.tab').forEach(t => t.onclick = () => {
     document.querySelectorAll('.tab').forEach(x => x.classList.remove('active'));
     document.querySelectorAll('.panel').forEach(x => x.classList.remove('active'));
     t.classList.add('active');
     document.getElementById('panel-' + t.dataset.tab).classList.add('active');
+    if (t.dataset.tab === 'rate') onRateTab();
   });
   document.getElementById('calPeriod').value = new Date().toISOString().slice(0, 7);
   try { const me = await call('GET', '/me'); showApp(me.username); loadSites(); loadSpecs(); } catch (e) { showLogin(); }
@@ -682,6 +776,307 @@ async function searchGeo() {
 function exportGeo() {
   const q = geoQuery(); if (!q) return;
   window.open(API + '/sites/geo/search/export?' + q, '_blank');
+}
+
+/* ===== ⑨ 年度刊例与统一计价 ===== */
+let rateSites = [];
+let rateTabLoaded = false;
+let editingVersionId = null;
+let edReadonly = false;
+let lastPreview = null;
+
+function fmtMoney(n) { return n == null || n === '' ? '—' : Number(n).toFixed(2); }
+function todayStr() { return new Date().toISOString().slice(0, 10); }
+function cardStatusTag(s) {
+  return s === 'EFFECTIVE' ? '<span class="tag eff">已生效</span>' : '<span class="tag draft">草稿年</span>';
+}
+function versionStatusTag(s) {
+  return { DRAFT: '<span class="tag draft">草稿</span>', EFFECTIVE: '<span class="tag eff">生效中</span>',
+    SUPERSEDED: '<span class="tag sup">已取代</span>', PENDING: '<span class="tag pend">待生效</span>' }[s] || esc(s);
+}
+function sourceLabel(s) { return s === 'INITIAL' ? '首版' : '修订'; }
+function siteOptions(selected) {
+  return rateSites.map(s => `<option value="${s.id}"${String(s.id) === String(selected) ? ' selected' : ''}>${esc(s.siteNo)}（${esc(s.businessDistrict)}）</option>`).join('');
+}
+
+async function onRateTab() {
+  if (!rateTabLoaded) {
+    rateTabLoaded = true;
+    document.getElementById('rcYear').value = new Date().getFullYear();
+    ['qtDate', 'ftDate'].forEach(id => document.getElementById(id).value = todayStr());
+    await loadRateSites();
+    document.getElementById('quoteLineEditTable').innerHTML =
+      '<tr><th>点位</th><th>购买周数</th><th></th></tr>';
+    addQuoteSiteRow();
+    await loadCards();
+    await loadQuotes();
+  }
+}
+
+async function loadRateSites() {
+  rateSites = await call('GET', '/sites');
+  document.getElementById('ftSite').innerHTML = '<option value="">（不选点位，只看档位）</option>'
+    + rateSites.map(s => `<option value="${s.id}">${esc(s.siteNo)}（${esc(s.businessDistrict)}）</option>`).join('');
+}
+
+async function createCard() {
+  try {
+    const card = await call('POST', '/rate-cards', { cardYear: Number(val('rcYear')), cardName: val('rcName'),
+      taxRate: val('rcTax'), operatorName: val('rcOperator') });
+    toast('建档成功：' + card.cardNo + '，v1 草稿已生成', true);
+    ['rcName', 'rcTax', 'rcOperator'].forEach(i => document.getElementById(i).value = '');
+    await loadCards();
+    selectCard(card.id);
+  } catch (e) { toast(e.message); }
+}
+
+async function loadCards() {
+  try {
+    const list = await call('GET', '/rate-cards' + (val('qrcYear') ? '?year=' + val('qrcYear') : ''));
+    document.getElementById('cardTable').innerHTML =
+      '<tr><th>刊例编号</th><th>年度</th><th>名称</th><th>状态</th><th>当前版本</th><th>经手人</th><th>操作</th></tr>'
+      + list.map(c => `<tr><td><b>${esc(c.cardNo)}</b></td><td>${c.cardYear}</td><td>${esc(c.cardName)}</td>
+        <td>${cardStatusTag(c.status)}</td><td>${c.currentVersionNo ? 'v' + c.currentVersionNo : '—'}</td>
+        <td>${esc(c.operatorName)}</td>
+        <td class="row-actions"><button class="sm gray" onclick="selectCard(${c.id})">查看版本</button>
+        <button class="sm" onclick="createDraft(${c.id})">开修订草稿</button></td></tr>`).join('')
+      || '<tr><td class="muted">还没有年度刊例</td></tr>';
+  } catch (e) { toast(e.message); }
+}
+
+async function selectCard(cardId) {
+  try {
+    const card = await call('GET', '/rate-cards/' + cardId);
+    document.getElementById('versionTable').innerHTML =
+      `<tr><th colspan="8">${esc(card.cardNo)}（${card.cardYear}）全部版本</th></tr>
+       <tr><th>版本</th><th>来源</th><th>状态</th><th>税率</th><th>生效时刻</th><th>发布人</th><th>建版人</th><th>操作</th></tr>`
+      + card.versions.map(v => `<tr><td>v${v.versionNo}</td><td>${sourceLabel(v.source)}</td>
+        <td>${versionStatusTag(v.status)}</td><td>${esc(v.taxRate)}</td><td>${esc(v.effectiveTime || '—')}</td>
+        <td>${esc(v.publishOperatorName || '—')}</td><td>${esc(v.operatorName)}</td>
+        <td class="row-actions">${v.status === 'DRAFT'
+          ? `<button class="sm" onclick="openEditor(${v.id},false)">编辑草稿</button>`
+          : `<button class="sm gray" onclick="openEditor(${v.id},true)">查看</button>`}</td></tr>`).join('');
+  } catch (e) { toast(e.message); }
+}
+
+async function createDraft(cardId) {
+  try {
+    const v = await call('POST', '/rate-cards/' + cardId + '/versions', {});
+    toast('修订草稿 v' + v.versionNo + ' 已生成（单价行/阶梯/税率已从上一版复制）', true);
+    await selectCard(cardId);
+    openEditor(v.id, false);
+  } catch (e) { toast(e.message); }
+}
+
+async function openEditor(versionId, readonly) {
+  try {
+    const d = await call('GET', '/rate-cards/versions/' + versionId);
+    editingVersionId = versionId;
+    edReadonly = readonly;
+    document.getElementById('versionEditor').style.display = 'block';
+    document.getElementById('edTitle').textContent = d.cardNo + ' v' + d.versionNo
+      + '（' + ({DRAFT:'草稿',EFFECTIVE:'生效中',SUPERSEDED:'已取代',PENDING:'待生效'}[d.status]) + '）';
+    document.getElementById('edTax').value = d.taxRate;
+    document.getElementById('edEffectiveDate').value = '';
+
+    const priceMap = {};
+    d.priceLines.forEach(p => priceMap[p.siteId] = p.listNetPrice);
+    document.getElementById('priceEditTable').innerHTML =
+      '<tr><th>点位编号</th><th>尺寸</th><th>商圈</th><th style="width:160px">不含税周单价</th></tr>'
+      + rateSites.map(s => `<tr><td>${esc(s.siteNo)}</td><td>${esc(s.sizeSpec)}</td><td>${esc(s.businessDistrict)}</td>
+        <td><input class="price-input" data-site="${s.id}" value="${priceMap[s.id] != null ? esc(priceMap[s.id]) : ''}" placeholder="未挂价"></td></tr>`).join('');
+
+    const tiers = d.tiers.length ? d.tiers : [{ tierNo:1, minWeeks:1, maxWeeks:3, discountRate:1 },
+      { tierNo:2, minWeeks:4, maxWeeks:7, discountRate:0.95 }, { tierNo:3, minWeeks:8, maxWeeks:null, discountRate:0.9 }];
+    renderTierRows(tiers);
+
+    // 只读态：所有输入与保存按钮禁用
+    document.querySelectorAll('#versionEditor input, #versionEditor button').forEach(el => el.disabled = readonly);
+  } catch (e) { toast(e.message); }
+}
+
+function renderTierRows(tiers) {
+  document.getElementById('tierEditTable').innerHTML =
+    '<tr><th style="width:120px">最少周数(含)</th><th style="width:120px">最多周数(含，空=无上限)</th><th style="width:140px">折扣率(如0.95)</th><th></th></tr>'
+    + tiers.map((t, i) => `<tr class="tierrow">
+      <td><input class="tmin" type="number" min="1" value="${esc(t.minWeeks)}"></td>
+      <td><input class="tmax" type="number" min="1" value="${t.maxWeeks == null ? '' : esc(t.maxWeeks)}" placeholder="仅末档可空"></td>
+      <td><input class="trate" value="${esc(t.discountRate)}"></td>
+      <td><button class="sm danger" onclick="this.closest('tr').remove()">删</button></td></tr>`).join('');
+  document.querySelectorAll('#tierEditTable button').forEach(b => b.disabled = edReadonly);
+}
+
+function addTierRow() {
+  document.getElementById('tierEditTable').insertAdjacentHTML('beforeend',
+    `<tr class="tierrow"><td><input class="tmin" type="number" min="1"></td>
+     <td><input class="tmax" type="number" min="1" placeholder="仅末档可空"></td>
+     <td><input class="trate"></td>
+     <td><button class="sm danger" onclick="this.closest('tr').remove()">删</button></td></tr>`);
+}
+
+async function saveDraftTax() {
+  try {
+    await call('PUT', '/rate-cards/versions/' + editingVersionId + '/tax-rate',
+      { taxRate: Number(val('edTax')), operatorName: undefined });
+    toast('税率已保存到草稿', true);
+  } catch (e) { toast(e.message); }
+}
+
+async function saveCardLines() {
+  const lines = [];
+  document.querySelectorAll('.price-input').forEach(inp => {
+    if (inp.value.trim() !== '') lines.push({ siteId: Number(inp.dataset.site), listNetPrice: Number(inp.value.trim()) });
+  });
+  if (!lines.length) { toast('至少给一个点位填单价'); return; }
+  try {
+    await call('PUT', '/rate-cards/versions/' + editingVersionId + '/lines', { lines });
+    toast('单价已整表保存到草稿', true);
+  } catch (e) { toast(e.message); }
+}
+
+function collectTiers() {
+  const rows = [...document.querySelectorAll('#tierEditTable tr.tierrow')];
+  return rows.map(r => ({
+    minWeeks: Number(r.querySelector('.tmin').value),
+    maxWeeks: r.querySelector('.tmax').value.trim() === '' ? null : Number(r.querySelector('.tmax').value),
+    discountRate: Number(r.querySelector('.trate').value)
+  }));
+}
+
+async function saveCardTiers() {
+  try {
+    await call('PUT', '/rate-cards/versions/' + editingVersionId + '/tiers', { tiers: collectTiers() });
+    toast('阶梯已整表保存到草稿', true);
+  } catch (e) { toast(e.message); }
+}
+
+async function publishVersion() {
+  const eff = document.getElementById('edEffectiveDate').value || null;
+  try {
+    const v = await call('POST', '/rate-cards/versions/' + editingVersionId + '/publish', { effectiveDate: eff });
+    toast('版本 v' + v.versionNo + ' 已发布（' + (v.status === 'PENDING' ? '待生效 ' + v.effectiveTime : '立即生效') + '）', true);
+    document.getElementById('versionEditor').style.display = 'none';
+    await loadCards();
+  } catch (e) { toast(e.message); }
+}
+
+// —— 报价 ——
+function quoteRowHtml() {
+  return `<tr class="qtrow">
+    <td style="width:320px"><select class="qsite">${siteOptions()}</select></td>
+    <td style="width:120px"><input class="qweeks" type="number" min="1" placeholder="周数"></td>
+    <td><button class="sm danger" onclick="this.closest('tr').remove()">删</button></td></tr>`;
+}
+function addQuoteSiteRow() {
+  document.getElementById('quoteLineEditTable').insertAdjacentHTML('beforeend', quoteRowHtml());
+}
+
+function collectQuoteLines() {
+  return [...document.querySelectorAll('#quoteLineEditTable tr.qtrow')].map(r => ({
+    siteId: Number(r.querySelector('.qsite').value),
+    weeks: Number(r.querySelector('.qweeks').value)
+  })).filter(l => l.weeks >= 1);
+}
+
+function quoteBody() {
+  return { quoteDate: val('qtDate'), customerName: val('qtCustomer'), remark: val('qtRemark'),
+    operatorName: val('qtOperator'), lines: collectQuoteLines() };
+}
+
+function renderPreview(view) {
+  lastPreview = view;
+  document.getElementById('quoteBasis').textContent =
+    `本试算按 ${view.cardNo} v${view.versionNo}（${(view.versionEffectiveTime || '').replace('T',' ')} 生效）计价，税率 ${(view.taxRate * 100).toFixed(2)}%；含税金额按不含税金额×(1+税率) 换算，与含税单价×周数可能差 1 分。`;
+  const head = '<tr><th>点位</th><th>周数</th><th>档位</th><th>挂牌净单价</th><th>折扣率</th><th>不含税周单价</th><th class="gross">含税周单价</th><th>不含税金额</th><th>税额</th><th class="gross">含税金额</th></tr>';
+  document.getElementById('quotePreviewTable').innerHTML = head + view.lines.map(l => `<tr>
+    <td>${esc(l.siteNo)}</td><td>${l.weeks}</td><td>${esc(l.tierRangeText)}</td>
+    <td>${fmtMoney(l.listNetUnit)}</td><td>${esc(l.discountRate)}</td>
+    <td>${fmtMoney(l.netUnit)}</td><td class="gross">${fmtMoney(l.grossUnit)}</td>
+    <td>${fmtMoney(l.netAmount)}</td><td>${fmtMoney(l.taxAmount)}</td><td class="gross">${fmtMoney(l.grossAmount)}</td></tr>`).join('')
+    + `<tr><td colspan="7"><b>合计（共 ${view.totalWeeks} 周）</b></td>
+       <td><b>${fmtMoney(view.netAmount)}</b></td><td><b>${fmtMoney(view.taxAmount)}</b></td>
+       <td class="gross">${fmtMoney(view.grossAmount)}</td></tr>`;
+  document.getElementById('submitQuoteBtn').disabled = false;
+}
+
+async function previewQuote() {
+  try {
+    if (!collectQuoteLines().length) { toast('至少加一行点位/周数'); return; }
+    const view = await call('POST', '/quotes/preview', quoteBody());
+    renderPreview(view);
+    toast('试算完成（含税合计 ' + fmtMoney(view.grossAmount) + '）', true);
+  } catch (e) { toast(e.message); }
+}
+
+async function submitQuote() {
+  try {
+    const view = await call('POST', '/quotes', quoteBody());
+    toast('报价单 ' + view.quoteNo + ' 已提交，单价快照已冻结，刊例后调不改本单', true);
+    lastPreview = null;
+    document.getElementById('submitQuoteBtn').disabled = true;
+    document.getElementById('quotePreviewTable').innerHTML = '';
+    document.getElementById('quoteBasis').textContent = '';
+    loadQuotes();
+  } catch (e) { toast(e.message); }
+}
+
+async function loadQuotes() {
+  try {
+    const qs = ['from=' + encodeURIComponent(val('qqtFrom') || ''), 'to=' + encodeURIComponent(val('qqtTo') || ''),
+      'quoteNo=' + encodeURIComponent(val('qqtNo') || ''), 'customerName=' + encodeURIComponent(val('qqtCustomer') || ''),
+      'cardYear=' + encodeURIComponent(val('qqtYear') || '')].join('&');
+    const list = await call('GET', '/quotes?' + qs);
+    document.getElementById('quoteTable').innerHTML =
+      '<tr><th>报价单号</th><th>报价日</th><th>客户</th><th>刊例版本</th><th>总周数</th><th>不含税合计</th><th>税额</th><th class="gross">含税合计</th><th>经手人</th><th></th></tr>'
+      + list.map(q => `<tr><td><a href="#" onclick="showQuoteDetail(${q.id});return false">${esc(q.quoteNo)}</a></td>
+        <td>${esc(q.quoteDate)}</td><td>${esc(q.customerName || '—')}</td>
+        <td>${esc(q.cardNo)} v${q.versionNo}</td><td>${q.totalWeeks}</td>
+        <td>${fmtMoney(q.netAmount)}</td><td>${fmtMoney(q.taxAmount)}</td><td class="gross">${fmtMoney(q.grossAmount)}</td>
+        <td>${esc(q.operatorName)}</td>
+        <td><button class="sm gray" onclick="showQuoteDetail(${q.id})">详情</button></td></tr>`).join('')
+      || '<tr><td class="muted">还没有报价单</td></tr>';
+  } catch (e) { toast(e.message); }
+}
+
+async function showQuoteDetail(id) {
+  try {
+    const q = await call('GET', '/quotes/' + id);
+    document.getElementById('quoteDetailBox').style.display = 'block';
+    document.getElementById('quoteDetailBasis').textContent =
+      `报价单 ${q.quoteNo}：按 ${q.quoteDate} 当天生效的 ${q.cardNo} v${q.versionNo}（${(q.versionEffectiveTime || '').replace('T',' ')} 生效，税率 ${(q.taxRate * 100).toFixed(2)}%）计价；以下均为当时快照，刊例后调不影响本单。`;
+    document.getElementById('quoteDetailTable').innerHTML =
+      '<tr><th>行</th><th>点位</th><th>周数</th><th>档位</th><th>挂牌净单价</th><th>折扣率</th><th>不含税周单价</th><th class="gross">含税周单价</th><th>不含税金额</th><th>税额</th><th class="gross">含税金额</th></tr>'
+      + q.lines.map(l => `<tr><td>${l.lineNo}</td><td>${esc(l.siteNo)}</td><td>${l.weeks}</td><td>${esc(l.tierRangeText)}</td>
+        <td>${fmtMoney(l.listNetUnit)}</td><td>${esc(l.discountRate)}</td>
+        <td>${fmtMoney(l.netUnit)}</td><td class="gross">${fmtMoney(l.grossUnit)}</td>
+        <td>${fmtMoney(l.netAmount)}</td><td>${fmtMoney(l.taxAmount)}</td><td class="gross">${fmtMoney(l.grossAmount)}</td></tr>`).join('')
+      + `<tr><td colspan="8"><b>合计（共 ${q.totalWeeks} 周）· 客户：${esc(q.customerName || '—')} · 备注：${esc(q.remark || '—')}</b></td>
+         <td><b>${fmtMoney(q.netAmount)}</b></td><td><b>${fmtMoney(q.taxAmount)}</b></td><td class="gross">${fmtMoney(q.grossAmount)}</td></tr>`;
+    document.getElementById('quoteDetailBox').scrollIntoView({ behavior: 'smooth' });
+  } catch (e) { toast(e.message); }
+}
+
+// —— 财务阶梯对照表 ——
+async function loadFinanceTiers() {
+  try {
+    const d = document.getElementById('ftDate').value || todayStr();
+    const sid = document.getElementById('ftSite').value;
+    const view = await call('GET', '/rate-cards/finance/tiers?date=' + encodeURIComponent(d)
+      + (sid ? '&siteId=' + encodeURIComponent(sid) : ''));
+    document.getElementById('financeTierTable').innerHTML =
+      `<tr><th colspan="9">${esc(view.cardNo)} v${view.versionNo}（${(view.effectiveTime || '').replace('T',' ')} 生效，税率 ${(view.taxRate * 100).toFixed(2)}%）${view.siteNo ? ' · 参照点位 ' + esc(view.siteNo) : ''}</th></tr>
+      <tr><th>档位</th><th>周数下限</th><th>周数上限</th><th>折扣率</th><th>点位</th><th>挂牌净单价</th><th>折后不含税周单价</th><th class="gross">折后含税周单价</th></tr>`
+      + view.tiers.map(r => `<tr><td>第${r.tierNo}档</td><td>${r.minWeeks}</td><td>${r.maxWeeks == null ? '无上限' : r.maxWeeks}</td>
+        <td>${esc(r.discountRate)}</td><td>${esc(view.siteNo || '—')}</td>
+        <td>${fmtMoney(r.listNetUnit)}</td><td>${fmtMoney(r.netUnit)}</td><td class="gross">${fmtMoney(r.grossUnit)}</td></tr>`).join('');
+  } catch (e) { toast(e.message); }
+}
+
+function exportFinanceTiers() {
+  const d = document.getElementById('ftDate').value || todayStr();
+  const sid = document.getElementById('ftSite').value;
+  window.open(API + '/rate-cards/finance/tiers/export?date=' + encodeURIComponent(d)
+    + (sid ? '&siteId=' + encodeURIComponent(sid) : ''), '_blank');
 }
 
 init();
